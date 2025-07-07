@@ -3,7 +3,8 @@ name: Build Ghostscript & gs_pclm.so for ARM64
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 env:
   GS_VER: 9.56.1
@@ -35,14 +36,13 @@ jobs:
             pkg-config \
             libpng-dev \
             zlib1g-dev \
-            libnode-dev \ 
+            libnode-dev \
             gcc-${{ matrix.toolchain }} \
             g++-${{ matrix.toolchain }} \
             wget \
             cmake \
             ninja-build
 
-      # ── 1. 编译 Ghostscript ─────────────────────────────────────
       - name: Download Ghostscript source
         run: |
           wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/${{ env.GS_TAG }}/ghostscript-${{ env.GS_VER }}.tar.gz
@@ -66,7 +66,6 @@ jobs:
           name: gs-arm64
           path: ghostscript-${{ env.GS_VER }}/install/bin/gs
 
-      # ── 2. 编译 Native 模块 libgs_pclm.z.so ────────────────────
       - name: Configure NAPI module
         run: |
           cmake -S entry/src/main/cpp -B native-build \
@@ -78,7 +77,8 @@ jobs:
             -GNinja
 
       - name: Build libgs_pclm.z.so
-        run: cmake --build native-build -- -j$(nproc)
+        run: |
+          cmake --build native-build -- -j$(nproc)
 
       - name: Upload libgs_pclm.z.so
         uses: actions/upload-artifact@v4
