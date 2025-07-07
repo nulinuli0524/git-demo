@@ -2,27 +2,24 @@
 #include <cstdlib>
 #include <string>
 
-// 如果 NODE_GYP_MODULE_NAME 没定义，就用 gs_pclm
-#ifndef NODE_GYP_MODULE_NAME
-#define NODE_GYP_MODULE_NAME gs_pclm
-#endif
-
+// 执行 shell 命令
 static bool Exec(const std::string &cmd) {
   return std::system(cmd.c_str()) == 0;
 }
 
-napi_value ConvertPdfToPclm(napi_env env, napi_callback_info info) {
+// 真正的业务实现
+static napi_value ConvertPdfToPclmImpl(napi_env env, napi_callback_info info) {
   size_t argc = 2;
   napi_value argv[2];
   napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
 
-  // 读 inputPdfPath
+  // 读取 inputPath
   size_t len;
   napi_get_value_string_utf8(env, argv[0], nullptr, 0, &len);
   std::string input(len + 1, '\0');
   napi_get_value_string_utf8(env, argv[0], &input[0], len + 1, nullptr);
 
-  // 读 outputPclmPath
+  // 读取 outputPath
   napi_get_value_string_utf8(env, argv[1], nullptr, 0, &len);
   std::string output(len + 1, '\0');
   napi_get_value_string_utf8(env, argv[1], &output[0], len + 1, nullptr);
@@ -37,15 +34,18 @@ napi_value ConvertPdfToPclm(napi_env env, napi_callback_info info) {
   return result;
 }
 
-// 这个宏会自动用 NODE_GYP_MODULE_NAME 注册 Init
-NAPI_MODULE_INIT() {
+// 这个符号是 N-API loader 查找的入口，必须导出
+extern "C" __attribute__((visibility("default")))
+napi_value napi_register_module_v1(napi_env env, napi_value exports) {
   napi_value fn;
-  napi_create_function(env,
-                       "convertPdfToPclm",
-                       NAPI_AUTO_LENGTH,
-                       ConvertPdfToPclm,
-                       nullptr,
-                       &fn);
+  napi_create_function(
+    env,
+    "convertPdfToPclm",
+    NAPI_AUTO_LENGTH,
+    ConvertPdfToPclmImpl,
+    nullptr,
+    &fn
+  );
   napi_set_named_property(env, exports, "convertPdfToPclm", fn);
   return exports;
 }
