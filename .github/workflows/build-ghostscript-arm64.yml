@@ -1,4 +1,4 @@
-name: Build Ghostscript ARM64
+name: Build Ghostscript & gs_pclm.so for ARM64
 
 on:
   workflow_dispatch:
@@ -9,46 +9,79 @@ on:
 env:
   GS_VER: 9.56.1
   GS_TAG: gs9561
+  NAPI_MODULE: gs_pclm
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [ "aarch64-linux-gnu" ]
+        node-version: [ 16.x ]    # 也可 18.x、20.x
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install cross-compile toolchain and dependencies
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install cross‐compile deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            pkg-config \
-            libpng-dev \
-            zlib1g-dev \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu \
-            wget
+            build-essential pkg-config libpng-dev zlib1g-dev \
+            ${matrix.toolchain}-gcc ${matrix.toolchain}-g++ \
+            wget cmake ninja-build
 
-      - name: Download Ghostscript source
+      # ── 1. 编译 Ghostscript ──────────────────────────────────────
+      - name: Download Ghostscript
         run: |
           wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/${{ env.GS_TAG }}/ghostscript-${{ env.GS_VER }}.tar.gz
           tar xzf ghostscript-${{ env.GS_VER }}.tar.gz
 
-      - name: Configure and Build for ARM64
+      - name: Build Ghostscript for ARM64
         run: |
           cd ghostscript-${{ env.GS_VER }}
           ./configure \
-            --host=aarch64-linux-gnu \
-            --disable-shared \
-            --enable-static \
+            --host=${{ matrix.toolchain }} \
+            --disable-shared --enable-static \
             --disable-gtk --without-x \
             --prefix=$PWD/install
-          make -j$(nproc)
-          make install
+          make -j$(nproc) && make install
 
-      - name: Upload ARM64 gs binary
+      - name: Upload Ghostscript binary
         uses: actions/upload-artifact@v4
         with:
           name: gs-arm64
           path: ghostscript-${{ env.GS_VER }}/install/bin/gs
+
+      # ── 2. 编译 Native 模块 libgs_pclm.z.so ────────────────────
+      - name: Prepare NAPI build dir
+        run: |
+          mkdir -p native-build && cd native-build
+          # copy source and CMakeLists.txt
+          cp -r ../entry/src/main/cpp/* .
+
+      - name: Configure gs_pclm with CMake
+        working-directory: native-build
+        run: |
+          cmake .. \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER=${{ matrix.toolchain }}-gcc \
+            -DCMAKE_CXX_COMPILER=${{ matrix.toolchain }}-g++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -GNinja
+
+      - name: Build libgs_pclm.z.so
+        working-directory: native-build
+        run: ninja
+
+      - name: Upload libgs_pclm.z.so
+        uses: actions/upload-artifact@v4
+        with:
+          name: gs_pclm-so-arm64
+          path: native-build/lib${{ env.NAPI_MODULE }}.z.so
