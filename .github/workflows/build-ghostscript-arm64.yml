@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Install cross‐compile dependencies
+      - name: Install cross-compile dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -42,6 +42,7 @@ jobs:
             cmake \
             ninja-build
 
+      # ── Ghostscript 编译 ────────────────────────────────────────────
       - name: Download Ghostscript source
         run: |
           wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/${{ env.GS_TAG }}/ghostscript-${{ env.GS_VER }}.tar.gz
@@ -57,8 +58,7 @@ jobs:
             --disable-gtk \
             --without-x \
             --prefix=$PWD/install
-          make -j$(nproc)
-          make install
+          make -j$(nproc) && make install
 
       - name: Upload Ghostscript binary
         uses: actions/upload-artifact@v4
@@ -66,15 +66,11 @@ jobs:
           name: gs-arm64
           path: ghostscript-${{ env.GS_VER }}/install/bin/gs
 
-      - name: Prepare NAPI build directory
-        run: |
-          mkdir -p native-build
-          cp -r entry/src/main/cpp/* native-build/
-
+      # ── NAPI 模块编译 ────────────────────────────────────────────────
       - name: Configure NAPI module
-        working-directory: native-build
         run: |
-          cmake .. \
+          mkdir native-build
+          cmake -S entry/src/main/cpp -B native-build \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
             -DCMAKE_C_COMPILER=${{ matrix.toolchain }}-gcc \
@@ -83,8 +79,8 @@ jobs:
             -GNinja
 
       - name: Build libgs_pclm.z.so
-        working-directory: native-build
-        run: ninja
+        run: |
+          cmake --build native-build -- -j$(nproc)
 
       - name: Upload libgs_pclm.z.so
         uses: actions/upload-artifact@v4
