@@ -1,13 +1,34 @@
+name: Build Ghostscript & gs_pclm.so for ARM64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  GS_VER: 9.56.1
+  GS_TAG: gs9561
+  NAPI_MODULE: gs_pclm
+
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         toolchain: [ "aarch64-linux-gnu" ]
-    steps:
-      - uses: actions/checkout@v4
+        node-version: [ 16.x ]
 
-      - name: Install cross‐compile deps
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install cross‐compile dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -21,4 +42,52 @@ jobs:
             cmake \
             ninja-build
 
-      # …后面下载 Ghostscript、cmake native 模块等步骤不变
+      - name: Download Ghostscript source
+        run: |
+          wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/${{ env.GS_TAG }}/ghostscript-${{ env.GS_VER }}.tar.gz
+          tar xzf ghostscript-${{ env.GS_VER }}.tar.gz
+
+      - name: Build Ghostscript for ARM64
+        run: |
+          cd ghostscript-${{ env.GS_VER }}
+          ./configure \
+            --host=${{ matrix.toolchain }} \
+            --disable-shared \
+            --enable-static \
+            --disable-gtk \
+            --without-x \
+            --prefix=$PWD/install
+          make -j$(nproc)
+          make install
+
+      - name: Upload Ghostscript binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gs-arm64
+          path: ghostscript-${{ env.GS_VER }}/install/bin/gs
+
+      - name: Prepare NAPI build directory
+        run: |
+          mkdir -p native-build
+          cp -r entry/src/main/cpp/* native-build/
+
+      - name: Configure NAPI module
+        working-directory: native-build
+        run: |
+          cmake .. \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER=${{ matrix.toolchain }}-gcc \
+            -DCMAKE_CXX_COMPILER=${{ matrix.toolchain }}-g++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -GNinja
+
+      - name: Build libgs_pclm.z.so
+        working-directory: native-build
+        run: ninja
+
+      - name: Upload libgs_pclm.z.so
+        uses: actions/upload-artifact@v4
+        with:
+          name: gs_pclm-so-arm64
+          path: native-build/lib${{ env.NAPI_MODULE }}.z.so
