@@ -1,11 +1,14 @@
 name: Build Ghostscript ARM64
 
-# 手动触发或每次 push 到 main 分支时运行
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+
+env:
+  GS_VER: 9.56.1
+  GS_TAG: gs9561
 
 jobs:
   build:
@@ -15,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install cross-compile toolchain and deps
+      - name: Install cross-compile toolchain and dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -29,13 +32,12 @@ jobs:
 
       - name: Download Ghostscript source
         run: |
-          GS_VER=9.56.1
-          wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs${GS_VER}/ghostscript-${GS_VER}.tar.gz
-          tar xzf ghostscript-${GS_VER}.tar.gz
+          wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/${{ env.GS_TAG }}/ghostscript-${{ env.GS_VER }}.tar.gz
+          tar xzf ghostscript-${{ env.GS_VER }}.tar.gz
 
-      - name: Configure and build
+      - name: Configure and Build for ARM64
         run: |
-          cd ghostscript-9.56.1
+          cd ghostscript-${{ env.GS_VER }}
           ./configure \
             --host=aarch64-linux-gnu \
             --disable-shared \
@@ -49,4 +51,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gs-arm64
-          path: ghostscript-9.56.1/install/bin/gs
+          path: ghostscript-${{ env.GS_VER }}/install/bin/gs
