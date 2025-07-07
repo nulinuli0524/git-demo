@@ -17,14 +17,12 @@ jobs:
     strategy:
       matrix:
         toolchain: [ "aarch64-linux-gnu" ]
-        node-version: [ 16.x ]    # 也可 18.x、20.x
+        node-version: [ 16.x ]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -32,40 +30,44 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential pkg-config libpng-dev zlib1g-dev \
-            ${matrix.toolchain}-gcc ${matrix.toolchain}-g++ \
-            wget cmake ninja-build
+            build-essential \
+            pkg-config \
+            libpng-dev \
+            zlib1g-dev \
+            ${{ matrix.toolchain }}-gcc \
+            ${{ matrix.toolchain }}-g++ \
+            wget \
+            cmake \
+            ninja-build
 
-      # ── 1. 编译 Ghostscript ──────────────────────────────────────
       - name: Download Ghostscript
         run: |
           wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/${{ env.GS_TAG }}/ghostscript-${{ env.GS_VER }}.tar.gz
           tar xzf ghostscript-${{ env.GS_VER }}.tar.gz
 
-      - name: Build Ghostscript for ARM64
+      - name: Build Ghostscript
         run: |
           cd ghostscript-${{ env.GS_VER }}
           ./configure \
             --host=${{ matrix.toolchain }} \
-            --disable-shared --enable-static \
+            --disable-shared \
+            --enable-static \
             --disable-gtk --without-x \
             --prefix=$PWD/install
           make -j$(nproc) && make install
 
-      - name: Upload Ghostscript binary
+      - name: Upload gs binary
         uses: actions/upload-artifact@v4
         with:
           name: gs-arm64
           path: ghostscript-${{ env.GS_VER }}/install/bin/gs
 
-      # ── 2. 编译 Native 模块 libgs_pclm.z.so ────────────────────
       - name: Prepare NAPI build dir
         run: |
           mkdir -p native-build && cd native-build
-          # copy source and CMakeLists.txt
           cp -r ../entry/src/main/cpp/* .
 
-      - name: Configure gs_pclm with CMake
+      - name: Configure NAPI module
         working-directory: native-build
         run: |
           cmake .. \
