@@ -2,6 +2,11 @@
 #include <cstdlib>
 #include <string>
 
+// 如果 NODE_GYP_MODULE_NAME 没定义，就用 gs_pclm
+#ifndef NODE_GYP_MODULE_NAME
+#define NODE_GYP_MODULE_NAME gs_pclm
+#endif
+
 static bool Exec(const std::string &cmd) {
   return std::system(cmd.c_str()) == 0;
 }
@@ -11,13 +16,13 @@ napi_value ConvertPdfToPclm(napi_env env, napi_callback_info info) {
   napi_value argv[2];
   napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
 
-  // 读 input
+  // 读 inputPdfPath
   size_t len;
   napi_get_value_string_utf8(env, argv[0], nullptr, 0, &len);
   std::string input(len + 1, '\0');
   napi_get_value_string_utf8(env, argv[0], &input[0], len + 1, nullptr);
 
-  // 读 output
+  // 读 outputPclmPath
   napi_get_value_string_utf8(env, argv[1], nullptr, 0, &len);
   std::string output(len + 1, '\0');
   napi_get_value_string_utf8(env, argv[1], &output[0], len + 1, nullptr);
@@ -32,8 +37,7 @@ napi_value ConvertPdfToPclm(napi_env env, napi_callback_info info) {
   return result;
 }
 
-// 这个宏是 N-API 推荐的「初始化」宏，
-// 内部会生成 exports 注册代码，确保 Init 一定会被调用
+// 这个宏会自动用 NODE_GYP_MODULE_NAME 注册 Init
 NAPI_MODULE_INIT() {
   napi_value fn;
   napi_create_function(env,
