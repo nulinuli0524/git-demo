@@ -35,6 +35,7 @@ jobs:
             pkg-config \
             libpng-dev \
             zlib1g-dev \
+            libnode-dev \ 
             gcc-${{ matrix.toolchain }} \
             g++-${{ matrix.toolchain }} \
             wget \
