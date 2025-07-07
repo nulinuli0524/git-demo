@@ -3,8 +3,7 @@ name: Build Ghostscript & gs_pclm.so for ARM64
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 env:
   GS_VER: 9.56.1
@@ -77,8 +76,7 @@ jobs:
             -GNinja
 
       - name: Build libgs_pclm.z.so
-        run: |
-          cmake --build native-build -- -j$(nproc)
+        run: cmake --build native-build -- -j$(nproc)
 
       - name: Upload libgs_pclm.z.so
         uses: actions/upload-artifact@v4
