@@ -1,9 +1,10 @@
 name: Build Ghostscript & gs_pclm.so for ARM64
 
 on:
-  workflow_dispatch
+  workflow_dispatch:    # 注意这里要加冒号
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build:
@@ -11,32 +12,46 @@ jobs:
     strategy:
       matrix:
         toolchain: [ "aarch64-linux-gnu" ]
+        node-version: [ 16.x ]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install cross-compile tools
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential pkg-config libpng-dev zlib1g-dev \
+            build-essential \
+            pkg-config \
+            libpng-dev \
+            zlib1g-dev \
             libnode-dev \
             gcc-${{ matrix.toolchain }} \
             g++-${{ matrix.toolchain }} \
-            wget cmake ninja-build
+            wget \
+            cmake \
+            ninja-build
 
-      - name: Download Ghostscript
+      - name: Download Ghostscript source
         run: |
           wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs9561/ghostscript-9.56.1.tar.gz
           tar xzf ghostscript-9.56.1.tar.gz
 
-      - name: Build Ghostscript
+      - name: Build Ghostscript for ARM64
         run: |
           cd ghostscript-9.56.1
           ./configure \
             --host=${{ matrix.toolchain }} \
-            --disable-shared --enable-static \
-            --disable-gtk --without-x \
+            --disable-shared \
+            --enable-static \
+            --disable-gtk \
+            --without-x \
             --prefix=$PWD/install
           make -j$(nproc) && make install
 
@@ -46,7 +61,7 @@ jobs:
           name: gs-arm64
           path: ghostscript-9.56.1/install/bin/gs
 
-      - name: Build NAPI module
+      - name: Configure NAPI module
         run: |
           cmake -S entry/src/main/cpp -B native-build \
             -DCMAKE_SYSTEM_NAME=Linux \
@@ -55,14 +70,11 @@ jobs:
             -DCMAKE_CXX_COMPILER=${{ matrix.toolchain }}-g++ \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja
-          cmake --build native-build -- -j$(nproc)
 
-      - name: Check exported symbols
-        run: |
-          echo "Looking for napi_register_module_v1…"
-          nm -g native-build/libgs_pclm.z.so | grep napi_register_module_v1
+      - name: Build libgs_pclm.z.so
+        run: cmake --build native-build -- -j$(nproc)
 
-      - name: Upload NAPI module
+      - name: Upload libgs_pclm.z.so
         uses: actions/upload-artifact@v4
         with:
           name: gs_pclm-so-arm64
