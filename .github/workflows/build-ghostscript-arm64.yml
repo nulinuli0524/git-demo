@@ -1,0 +1,52 @@
+name: Build Ghostscript ARM64
+
+# 手动触发或每次 push 到 main 分支时运行
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install cross-compile toolchain and deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libpng-dev \
+            zlib1g-dev \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            wget
+
+      - name: Download Ghostscript source
+        run: |
+          GS_VER=9.56.1
+          wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs${GS_VER}/ghostscript-${GS_VER}.tar.gz
+          tar xzf ghostscript-${GS_VER}.tar.gz
+
+      - name: Configure and build
+        run: |
+          cd ghostscript-9.56.1
+          ./configure \
+            --host=aarch64-linux-gnu \
+            --disable-shared \
+            --enable-static \
+            --disable-gtk --without-x \
+            --prefix=$PWD/install
+          make -j$(nproc)
+          make install
+
+      - name: Upload ARM64 gs binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: gs-arm64
+          path: ghostscript-9.56.1/install/bin/gs
