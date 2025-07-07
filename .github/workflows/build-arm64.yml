@@ -1,10 +1,15 @@
 name: Build Ghostscript & gs_pclm.so for ARM64
 
 on:
-  workflow_dispatch:    # 注意这里要加冒号
+  workflow_dispatch:
   push:
     branches:
       - main
+
+env:
+  GS_VER: 9.56.1
+  GS_TAG: gs9561
+  NAPI_MODULE: gs_pclm
 
 jobs:
   build:
@@ -40,12 +45,12 @@ jobs:
 
       - name: Download Ghostscript source
         run: |
-          wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs9561/ghostscript-9.56.1.tar.gz
-          tar xzf ghostscript-9.56.1.tar.gz
+          wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/${{ env.GS_TAG }}/ghostscript-${{ env.GS_VER }}.tar.gz
+          tar xzf ghostscript-${{ env.GS_VER }}.tar.gz
 
       - name: Build Ghostscript for ARM64
         run: |
-          cd ghostscript-9.56.1
+          cd ghostscript-${{ env.GS_VER }}
           ./configure \
             --host=${{ matrix.toolchain }} \
             --disable-shared \
@@ -59,7 +64,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gs-arm64
-          path: ghostscript-9.56.1/install/bin/gs
+          path: ghostscript-${{ env.GS_VER }}/install/bin/gs
 
       - name: Configure NAPI module
         run: |
@@ -74,8 +79,13 @@ jobs:
       - name: Build libgs_pclm.z.so
         run: cmake --build native-build -- -j$(nproc)
 
+      - name: Check exported symbols
+        run: |
+          echo "Looking for napi_register_module_v1…"
+          nm -g native-build/lib${{ env.NAPI_MODULE }}.z.so | grep napi_register_module_v1 || echo ">> napi_register_module_v1 not found"
+
       - name: Upload libgs_pclm.z.so
         uses: actions/upload-artifact@v4
         with:
           name: gs_pclm-so-arm64
-          path: native-build/libgs_pclm.z.so
+          path: native-build/lib${{ env.NAPI_MODULE }}.z.so
