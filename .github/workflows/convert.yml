@@ -1,0 +1,33 @@
+name: Convert PDF to PCLm
+
+on:
+  push:
+    paths:
+      - 'pdfs/*.pdf'  # 监听 pdfs 目录下的新/更新 PDF 文件
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ghostscript
+
+      - name: Convert PDFs to PCLm
+        run: |
+          mkdir -p pclm_output
+          for file in pdfs/*.pdf; do
+            filename=$(basename "$file" .pdf)
+            gs -dBATCH -dNOPAUSE -sDEVICE=pclm \
+              -sOutputFile="pclm_output/${filename}.pclm" "$file"
+          done
+
+      - name: Upload converted files
+        uses: actions/upload-artifact@v4
+        with:
+          name: converted-pclm-files
+          path: pclm_output/
