@@ -1,0 +1,31 @@
+name: Extract libghostscript.so
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  extract-lib:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Ghostscript 开发库
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ghostscript libgs-dev pkg-config
+
+      - name: 复制并重命名共享库
+        run: |
+          mkdir -p artifacts
+          # 从系统库中查找 libgs.so 路径并复制
+          LIB_PATH=$(ldconfig -p | grep libgs.so | head -n1 | awk '{print $NF}')
+          cp "$LIB_PATH" artifacts/libghostscript.so
+
+      - name: 上传 libghostscript.so 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: libghostscript
+          path: artifacts/libghostscript.so
