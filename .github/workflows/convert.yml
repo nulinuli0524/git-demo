@@ -3,7 +3,8 @@ name: Convert PDF to PCLm
 on:
   push:
     paths:
-      - 'pdfs/*.pdf'  # 监听 pdfs 目录下的新/更新 PDF 文件
+      - 'pdfs/*.pdf'
+  workflow_dispatch:  # 👉 添加这一行，启用手动触发按钮
 
 jobs:
   convert:
