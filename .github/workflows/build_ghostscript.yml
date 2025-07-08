@@ -1,0 +1,51 @@
+name: Build Ghostscript for OpenHarmony
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64-v8a, armeabi-v7a]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup OpenHarmony NDK
+      run: |
+        NDK_URL="https://repo.huaweicloud.com/harmonyos/develop_tools/ohos-sdk/ohos-sdk-linux-4.1.0.0.zip"
+        wget $NDK_URL -O ndk.zip
+        unzip ndk.zip -d ${{ runner.temp }}/ndk
+        echo "NDK_PATH=${{ runner.temp }}/ndk" >> $GITHUB_ENV
+
+    - name: Build Ghostscript
+      run: |
+        git clone https://github.com/ArtifexSoftware/ghostpdl.git
+        cd ghostpdl
+        
+        # 配置精简选项
+        echo "SHARE_JPEG=no" >> base/ghostscr.mak
+        echo "SHARE_LIBPNG=no" >> base/ghostscr.mak
+        
+        # 交叉编译配置
+        export CC="$NDK_PATH/llvm/bin/clang"
+        export CFLAGS="--target=armv7a-linux-ohos --sysroot=$NDK_PATH/sysroot"
+        ./configure --host=arm-linux-ohos \
+                    --prefix=$PWD/install/${{ matrix.arch }}
+        
+        make -j$(nproc)
+        make install
+        
+        # 打包产物
+        cd install
+        zip -r ghostscript-${{ matrix.arch }}.zip ${{ matrix.arch }}
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ghostscript-${{ matrix.arch }}
+        path: ghostpdl/install/ghostscript-${{ matrix.arch }}.zip
