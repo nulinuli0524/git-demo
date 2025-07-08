@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  OHOS_NDK_VERSION: "4.1.0.0"
+  OHOS_SDK_VERSION: "4.1.0.0"
 
 jobs:
   build:
@@ -20,45 +20,64 @@ jobs:
       
     - name: Setup OpenHarmony NDK
       run: |
-        # 使用新的 NDK 下载格式
-        NDK_URL="https://repo.huaweicloud.com/harmonyos/develop_tools/ohos-sdk/${OHOS_NDK_VERSION}/ohos-sdk-linux.tar.gz"
-        wget $NDK_URL -O ndk.tar.gz
+        # 使用正确的 NDK 下载 URL
+        NDK_URL="https://repo.huaweicloud.com/openharmony/os/${OHOS_SDK_VERSION}/sdk/native/ohos-sdk-native-${OHOS_SDK_VERSION}-linux.tar.gz"
+        
+        # 备选镜像源
+        if ! wget $NDK_URL -O ndk.tar.gz; then
+          echo "尝试备选镜像源..."
+          NDK_URL="https://mirrors.tuna.tsinghua.edu.cn/openharmony/os/${OHOS_SDK_VERSION}/sdk/native/ohos-sdk-native-${OHOS_SDK_VERSION}-linux.tar.gz"
+          wget $NDK_URL -O ndk.tar.gz
+        fi
+        
+        # 解压并设置路径
         mkdir -p ${{ runner.temp }}/ndk
         tar -xzf ndk.tar.gz -C ${{ runner.temp }}/ndk --strip-components=1
-        
-        # 设置环境变量
-        OHOS_NDK_ROOT="${{ runner.temp }}/ndk/native"
-        echo "NDK_PATH=$OHOS_NDK_ROOT" >> $GITHUB_ENV
-        echo "OHOS_NDK_ROOT=$OHOS_NDK_ROOT" >> $GITHUB_ENV
+        echo "NDK_PATH=${{ runner.temp }}/ndk" >> $GITHUB_ENV
 
+    - name: Verify NDK installation
+      run: |
+        echo "NDK 路径: $NDK_PATH"
+        ls -la $NDK_PATH
+        $NDK_PATH/llvm/bin/clang --version || echo "Clang 未找到!"
+        
     - name: Build Ghostscript
       run: |
-        git clone --depth 1 https://github.com/ArtifexSoftware/ghostpdl.git
+        # 克隆最新稳定版
+        git clone --depth 1 --branch 10.03.0 https://github.com/ArtifexSoftware/ghostpdl.git
         cd ghostpdl
         
-        # 精简配置
-        cat > base/custom.mak << EOF
-        SHARE_JPEG=no
-        SHARE_LIBPNG=no
-        SHARE_ZLIB=no
+        # 创建精简配置
+        cat > base/custom.mak << 'EOF'
+        SHARE_JPEG=0
+        SHARE_LIBPNG=0
+        SHARE_ZLIB=0
+        SHARE_LCMS2=0
         CCAUX=gcc
         CC=$NDK_PATH/llvm/bin/clang
         CFLAGS_STANDARD=--sysroot=$NDK_PATH/sysroot -fPIE
         XCFLAGS=--target=arm-linux-ohos
         EOF
         
-        # 交叉编译
+        # 配置
         ./configure --host=arm-linux-ohos \
-                    --prefix=/ \
-                    --disable-cups \
-                    --disable-gtk
+                   --prefix=/ \
+                   --disable-cups \
+                   --disable-gtk \
+                   --disable-contrib \
+                   --without-x
         
+        # 构建
         make -j$(nproc) so
-        make DESTDIR=./install/${{ matrix.arch }} install-so
+        
+        # 安装到临时目录
+        mkdir -p install/${{ matrix.arch }}
+        cp base/*.so install/${{ matrix.arch }}/
+        cp bin/gs install/${{ matrix.arch }}/
         
         # 准备上传
         mkdir -p artifacts/${{ matrix.arch }}
-        cp install/${{ matrix.arch }}/lib/*.so artifacts/${{ matrix.arch }}/
+        cp install/${{ matrix.arch }}/* artifacts/${{ matrix.arch }}/
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
