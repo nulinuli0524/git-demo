@@ -1,4 +1,4 @@
-name: Ghostscript Build Pipeline
+name: Build Ghostscript for OpenHarmony
 
 on:
   push:
@@ -20,10 +20,16 @@ jobs:
       
     - name: Setup OpenHarmony NDK
       run: |
-        NDK_URL="https://repo.huaweicloud.com/harmonyos/develop_tools/ohos-sdk/ohos-sdk-linux-$OHOS_NDK_VERSION.zip"
-        wget $NDK_URL -O ndk.zip
-        unzip ndk.zip -d ${{ runner.temp }}/ndk
-        echo "NDK_PATH=${{ runner.temp }}/ndk/ohos-sdk" >> $GITHUB_ENV
+        # 使用新的 NDK 下载格式
+        NDK_URL="https://repo.huaweicloud.com/harmonyos/develop_tools/ohos-sdk/${OHOS_NDK_VERSION}/ohos-sdk-linux.tar.gz"
+        wget $NDK_URL -O ndk.tar.gz
+        mkdir -p ${{ runner.temp }}/ndk
+        tar -xzf ndk.tar.gz -C ${{ runner.temp }}/ndk --strip-components=1
+        
+        # 设置环境变量
+        OHOS_NDK_ROOT="${{ runner.temp }}/ndk/native"
+        echo "NDK_PATH=$OHOS_NDK_ROOT" >> $GITHUB_ENV
+        echo "OHOS_NDK_ROOT=$OHOS_NDK_ROOT" >> $GITHUB_ENV
 
     - name: Build Ghostscript
       run: |
@@ -31,35 +37,35 @@ jobs:
         cd ghostpdl
         
         # 精简配置
-        cat > custom.mak << EOF
+        cat > base/custom.mak << EOF
         SHARE_JPEG=no
         SHARE_LIBPNG=no
         SHARE_ZLIB=no
+        CCAUX=gcc
+        CC=$NDK_PATH/llvm/bin/clang
+        CFLAGS_STANDARD=--sysroot=$NDK_PATH/sysroot -fPIE
+        XCFLAGS=--target=arm-linux-ohos
         EOF
         
         # 交叉编译
-        export CC="$NDK_PATH/llvm/bin/clang"
-        export CFLAGS="--target=armv7a-linux-ohos -march=armv7-a --sysroot=$NDK_PATH/sysroot"
         ./configure --host=arm-linux-ohos \
                     --prefix=/ \
                     --disable-cups \
                     --disable-gtk
         
-        make -j$(nproc)
-        make DESTDIR=./install/${{ matrix.arch }} install
+        make -j$(nproc) so
+        make DESTDIR=./install/${{ matrix.arch }} install-so
         
         # 准备上传
         mkdir -p artifacts/${{ matrix.arch }}
-        cp -r install/${{ matrix.arch }}/* artifacts/${{ matrix.arch }}/
+        cp install/${{ matrix.arch }}/lib/*.so artifacts/${{ matrix.arch }}/
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ghostscript-${{ matrix.arch }}
         path: ghostpdl/artifacts/${{ matrix.arch }}
-        retention-days: 7  # 设置自动清理时间
+        retention-days: 7
 
     - name: Clean up
-      run: |
-        rm -rf ghostpdl
-        rm -rf ${{ runner.temp }}/ndk
+      run: rm -rf ghostpdl
