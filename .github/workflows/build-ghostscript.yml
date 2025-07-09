@@ -1,7 +1,7 @@
 name: Build & Release Ghostscript Shared Library
 
 permissions:
-  contents: write  # 关键：允许创建 Release
+  contents: write   # 允许创建 Release
 
 on:
   workflow_dispatch:
@@ -9,46 +9,54 @@ on:
 jobs:
   build_and_release:
     runs-on: ubuntu-latest
+
     env:
-      INSTALL_DIR: ${{ github.workspace }}/ghostscript-install
+      INSTALL_DIR: $HOME/ghostscript-install
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libtool automake pkg-config \
             libjpeg-dev libpng-dev zlib1g-dev
 
-      - name: Clone GhostPDL & build Ghostscript
+      - name: Clone GhostPDL source and init submodules
         run: |
-          git clone https://github.com/ArtifexSoftware/ghostpdl.git
-          cd ghostpdl/gs
+          git clone https://github.com/ArtifexSoftware/ghostpdl.git ghostpdl
+          cd ghostpdl
           git submodule update --init --recursive
 
+      - name: Configure & build Ghostscript shared library
+        run: |
           mkdir -p "$INSTALL_DIR"
+          cd ghostpdl/gs
           ./autogen.sh
-          ./configure --enable-shared --disable-static \
-                      --disable-gtk --prefix="$INSTALL_DIR"
+          ./configure --enable-shared --disable-static --disable-gtk \
+                      --prefix="$INSTALL_DIR"
           make -j$(nproc)
           make install
 
-      - name: Show installed files
-        run: ls -lhR ${{ env.INSTALL_DIR }}
+      - name: Show installed files for verification
+        run: |
+          echo "=== Contents of $INSTALL_DIR ==="
+          ls -lhR "$INSTALL_DIR"
 
-      - name: Collect .so files
+      - name: Collect .so files into workspace
         run: |
           mkdir -p libs
-          cp ${{ env.INSTALL_DIR }}/lib/*.so* libs/
+          cp "$INSTALL_DIR"/lib/*.so* libs/
 
-      - name: Create GitHub Release and upload .so
+      - name: List collected libraries
+        run: ls -lh libs
+
+      - name: Create GitHub Release and upload .so files
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ghostscript-${{ github.run_number }}
           name: Ghostscript Shared Library Build #${{ github.run_number }}
-          files: |
-            libs/*.so*
+          files: libs/*.so*
           token: ${{ secrets.GITHUB_TOKEN }}
