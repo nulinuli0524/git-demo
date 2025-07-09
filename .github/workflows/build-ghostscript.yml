@@ -1,4 +1,4 @@
-name: Build Ghostscript Shared Library
+name: Build & Release Ghostscript Shared Library
 
 on:
   workflow_dispatch:
@@ -9,7 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    outputs:
+      install-dir: ${{ steps.set-install-dir.outputs.dir }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -17,8 +18,9 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libtool automake \
-                                 pkg-config libjpeg-dev libpng-dev zlib1g-dev
+          sudo apt-get install -y \
+            build-essential libtool automake pkg-config \
+            libjpeg-dev libpng-dev zlib1g-dev
 
       - name: Clone Ghostscript (GhostPDL) source
         run: |
@@ -26,20 +28,46 @@ jobs:
           cd ghostpdl
           git submodule update --init
 
-      - name: Configure and build Ghostscript
+      - name: Prepare install directory
+        id: set-install-dir
         run: |
-          # ensure install directory is writable
-          mkdir -p $HOME/ghostscript-install
+          INSTALL_DIR="$HOME/ghostscript-install"
+          mkdir -p "$INSTALL_DIR"
+          echo "::set-output name=dir::$INSTALL_DIR"
 
+      - name: Configure & build Ghostscript
+        run: |
           cd ghostpdl
           ./autogen.sh
           ./configure --enable-shared --disable-gtk \
-                      --prefix="$HOME/ghostscript-install"
+                      --prefix="${{ steps.set-install-dir.outputs.dir }}"
           make -j$(nproc)
           make install
 
-      - name: Upload built shared library
+      - name: Upload built shared library as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ghostscript-lib
-          path: $HOME/ghostscript-install/lib
+          path: ${{ steps.set-install-dir.outputs.dir }}/lib
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ghostscript-lib
+          path: ./artifacts/lib
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "ghostscript-${{ github.run_number }}"
+          name: "Ghostscript Shared Library Build #${{ github.run_number }}"
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/lib/libgs.so
+            artifacts/lib/libgs.so.*  # 如果有版本化的 so
+
