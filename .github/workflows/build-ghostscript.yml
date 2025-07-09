@@ -28,10 +28,13 @@ jobs:
 
       - name: Configure and build Ghostscript
         run: |
+          # ensure install directory is writable
+          mkdir -p $HOME/ghostscript-install
+
           cd ghostpdl
           ./autogen.sh
           ./configure --enable-shared --disable-gtk \
-                      --prefix=${{ env.HOME }}/ghostscript-install
+                      --prefix="$HOME/ghostscript-install"
           make -j$(nproc)
           make install
 
@@ -39,4 +42,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ghostscript-lib
-          path: ${{ env.HOME }}/ghostscript-install/lib
+          path: $HOME/ghostscript-install/lib
