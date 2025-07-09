@@ -1,7 +1,7 @@
 name: Build & Release Ghostscript Shared Library
 
 permissions:
-  contents: write
+  contents: write  # 允许创建 GitHub Release
 
 on:
   workflow_dispatch:
@@ -32,30 +32,31 @@ jobs:
       - name: Configure & build Ghostscript
         run: |
           mkdir -p "$INSTALL_DIR"
-          cd ghostpdl
+          cd ghostpdl/gs
           ./autogen.sh
           ./configure --enable-shared --disable-static --disable-gtk \
                       --prefix="$INSTALL_DIR"
           make -j$(nproc)
           make install
 
-      - name: Debug install directory
+      - name: Debug installed files
         run: |
-          echo "=== Installed directory structure ==="
-          ls -R "$INSTALL_DIR"
+          echo "Checking generated .so files:"
+          find "$INSTALL_DIR/lib" -name "*.so*" -print
 
-      - name: Collect shared libraries
+      - name: Collect .so files for release
         run: |
           mkdir -p libs
           cp "$INSTALL_DIR"/lib/*.so* libs/
 
-      - name: List collected libs
+      - name: List collected files
         run: ls -l libs
 
-      - name: Create GitHub Release with .so files
+      - name: Create GitHub Release with shared libs
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.run_number }}
-          name: Ghostscript Shared Lib Build #${{ github.run_number }}
-          files: libs/*.so*
+          tag_name: ghostscript-${{ github.run_number }}
+          name: Ghostscript Shared Library Build #${{ github.run_number }}
+          files: |
+            libs/*.so*
           token: ${{ secrets.GITHUB_TOKEN }}
