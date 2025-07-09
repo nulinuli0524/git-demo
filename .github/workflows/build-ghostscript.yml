@@ -9,9 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    outputs:
-      install-dir: ${{ steps.set-install-dir.outputs.dir }}
+    env:
+      INSTALL_DIR: ${{ runner.home }}/ghostscript-install
 
     steps:
       - name: Checkout repository
@@ -30,26 +29,32 @@ jobs:
           cd ghostpdl
           git submodule update --init
 
-      - name: Prepare install directory
-        id: set-install-dir
+      - name: Create install directory
         run: |
-          INSTALL_DIR="$HOME/ghostscript-install"
-          mkdir -p "$INSTALL_DIR"
-          echo "::set-output name=dir::$INSTALL_DIR"
+          mkdir -p $INSTALL_DIR
 
       - name: Configure & build Ghostscript
         run: |
           cd ghostpdl
           ./autogen.sh
           ./configure --enable-shared --disable-gtk \
-                      --prefix="${{ steps.set-install-dir.outputs.dir }}"
+                      --prefix="$INSTALL_DIR"
           make -j$(nproc)
           make install
 
-      - name: Package shared library into tarball
+      - name: Debug install directory
         run: |
-          cd "${{ steps.set-install-dir.outputs.dir }}/lib"
-          tar czf "$GITHUB_WORKSPACE/ghostscript-lib.tar.gz" *.so*
+          echo "--- Contents of $INSTALL_DIR ---"
+          ls -R "$INSTALL_DIR"
+
+      - name: Package shared libraries
+        run: |
+          if [ -d "$INSTALL_DIR/lib" ]; then
+            tar czf ghostscript-lib.tar.gz -C "$INSTALL_DIR/lib" .
+          else
+            echo "ERROR: directory $INSTALL_DIR/lib not found"
+            exit 1
+          fi
 
       - name: Upload shared library artifact
         uses: actions/upload-artifact@v4
