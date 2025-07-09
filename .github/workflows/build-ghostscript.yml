@@ -9,8 +9,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     outputs:
       install-dir: ${{ steps.set-install-dir.outputs.dir }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -22,7 +24,7 @@ jobs:
             build-essential libtool automake pkg-config \
             libjpeg-dev libpng-dev zlib1g-dev
 
-      - name: Clone Ghostscript (GhostPDL) source
+      - name: Clone Ghostscript source
         run: |
           git clone https://github.com/ArtifexSoftware/ghostpdl.git
           cd ghostpdl
@@ -44,21 +46,32 @@ jobs:
           make -j$(nproc)
           make install
 
-      - name: Upload built shared library as Artifact
+      - name: Package shared library into tarball
+        run: |
+          cd "${{ steps.set-install-dir.outputs.dir }}/lib"
+          tar czf "$GITHUB_WORKSPACE/ghostscript-lib.tar.gz" *.so*
+
+      - name: Upload shared library artifact
         uses: actions/upload-artifact@v4
         with:
           name: ghostscript-lib
-          path: ${{ steps.set-install-dir.outputs.dir }}/lib
+          path: ghostscript-lib.tar.gz
 
   release:
     needs: build
     runs-on: ubuntu-latest
+
     steps:
-      - name: Download artifact
+      - name: Download shared library artifact
         uses: actions/download-artifact@v4
         with:
           name: ghostscript-lib
-          path: ./artifacts/lib
+          path: ./artifact
+
+      - name: Extract library files
+        run: |
+          mkdir -p extracted
+          tar xzf ./artifact/ghostscript-lib.tar.gz -C extracted
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -68,6 +81,4 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/lib/libgs.so
-            artifacts/lib/libgs.so.*  # 如果有版本化的 so
-
+            extracted/*.so*
