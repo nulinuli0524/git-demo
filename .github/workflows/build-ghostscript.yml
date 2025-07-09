@@ -36,32 +36,27 @@ jobs:
           make -j$(nproc)
           make install
 
-      - name: Package shared libraries
-        run: |
-          cd $HOME/ghostscript-install/lib
-          tar czf $GITHUB_WORKSPACE/ghostscript-lib.tar.gz ./*.so*
-
-      - name: Upload shared library artifact
+      - name: Upload built shared libraries
         uses: actions/upload-artifact@v4
         with:
           name: ghostscript-lib
-          path: ghostscript-lib.tar.gz
+          path: |
+            $HOME/ghostscript-install/lib/*.so*
 
   release:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download shared library artifact
+      - name: Download shared libraries artifact
         uses: actions/download-artifact@v4
         with:
           name: ghostscript-lib
-          path: ./artifact
+          path: libs
 
-      - name: Extract library files
+      - name: List downloaded libraries
         run: |
-          mkdir extracted
-          tar xzf artifact/ghostscript-lib.tar.gz -C extracted
+          ls -l libs
 
       - name: Create GitHub Release and attach libraries
         uses: softprops/action-gh-release@v1
@@ -71,4 +66,4 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            extracted/*.so*
+            libs/*.so*
