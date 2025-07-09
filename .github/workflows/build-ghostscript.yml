@@ -6,9 +6,6 @@ on:
     paths:
       - '.github/workflows/build-ghostscript.yml'
 
-env:
-  INSTALL_DIR: $HOME/ghostscript-install
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,62 +17,51 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential libtool automake pkg-config \
-            libjpeg-dev libpng-dev zlib1g-dev
+          sudo apt-get install -y build-essential libtool automake \
+                                 pkg-config libjpeg-dev libpng-dev zlib1g-dev
 
-      - name: Clone Ghostscript source
+      - name: Clone Ghostscript (GhostPDL) source
         run: |
           git clone https://github.com/ArtifexSoftware/ghostpdl.git
           cd ghostpdl
           git submodule update --init
 
-      - name: Create install directory
-        run: mkdir -p "$INSTALL_DIR"
-
-      - name: Configure & build Ghostscript
+      - name: Configure and build Ghostscript
         run: |
+          mkdir -p $HOME/ghostscript-install
           cd ghostpdl
           ./autogen.sh
-          ./configure --enable-shared --disable-gtk --prefix="$INSTALL_DIR"
+          ./configure --enable-shared --disable-gtk \
+                      --prefix="$HOME/ghostscript-install"
           make -j$(nproc)
           make install
 
-      - name: Debug install directory contents
-        run: ls -lR "$INSTALL_DIR"
-
-      - name: Package shared libraries
-        run: |
-          tar czf ghostscript-lib.tar.gz -C "$INSTALL_DIR/lib" .
-
-      - name: Upload shared library artifact
+      - name: Upload built shared library
         uses: actions/upload-artifact@v4
         with:
           name: ghostscript-lib
-          path: ghostscript-lib.tar.gz
+          path: $HOME/ghostscript-install/lib
 
   release:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download shared library artifact
+      - name: Download built shared library
         uses: actions/download-artifact@v4
         with:
           name: ghostscript-lib
-          path: ./artifact
+          path: artifact
 
-      - name: Extract library files
-        run: |
-          mkdir -p extracted
-          tar xzf ./artifact/ghostscript-lib.tar.gz -C extracted
+      - name: List downloaded files
+        run: ls -l artifact
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release and attach libraries
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "ghostscript-${{ github.run_number }}"
-          name: "Ghostscript Shared Library Build #${{ github.run_number }}"
+          tag_name: ghostscript-lib-${{ github.run_number }}
+          name: Ghostscript Shared Library Build #${{ github.run_number }}
           draft: false
           prerelease: false
           files: |
-            extracted/*.so*
+            artifact/*.so*
