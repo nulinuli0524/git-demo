@@ -1,7 +1,7 @@
 name: Build & Release Ghostscript Shared Library
 
 permissions:
-  contents: write  # 允许创建 GitHub Release
+  contents: write
 
 on:
   workflow_dispatch:
@@ -23,16 +23,13 @@ jobs:
             build-essential libtool automake pkg-config \
             libjpeg-dev libpng-dev zlib1g-dev
 
-      - name: Clone GhostPDL source
+      - name: Clone GhostPDL and build Ghostscript
         run: |
           git clone https://github.com/ArtifexSoftware/ghostpdl.git
-          cd ghostpdl
+          cd ghostpdl/gs
           git submodule update --init --recursive
 
-      - name: Configure & build Ghostscript
-        run: |
           mkdir -p "$INSTALL_DIR"
-          cd ghostpdl/gs
           ./autogen.sh
           ./configure --enable-shared --disable-static --disable-gtk \
                       --prefix="$INSTALL_DIR"
@@ -41,18 +38,18 @@ jobs:
 
       - name: Debug installed files
         run: |
-          echo "Checking generated .so files:"
-          find "$INSTALL_DIR/lib" -name "*.so*" -print
+          echo "Installed files:"
+          ls -lR "$INSTALL_DIR"
 
-      - name: Collect .so files for release
+      - name: Copy .so files to workspace
         run: |
           mkdir -p libs
           cp "$INSTALL_DIR"/lib/*.so* libs/
 
-      - name: List collected files
+      - name: List copied files
         run: ls -l libs
 
-      - name: Create GitHub Release with shared libs
+      - name: Create GitHub Release and attach .so files
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ghostscript-${{ github.run_number }}
