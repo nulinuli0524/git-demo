@@ -1,5 +1,8 @@
 name: Build & Release Ghostscript Shared Library
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -32,23 +35,30 @@ jobs:
       - name: Configure & build Ghostscript
         run: |
           mkdir -p "$INSTALL_DIR"
-          cd ghostpdl                       # <<— 这里就到根目录，不要再到 gs 目录
+          cd ghostpdl
           ./autogen.sh
-          ./configure --enable-shared --disable-gtk \
-                      --prefix="$INSTALL_DIR"
+          ./configure --enable-shared --disable-gtk --prefix="$INSTALL_DIR"
           make -j$(nproc)
           make install
 
       - name: Debug install directory
+        run: ls -lR "$INSTALL_DIR"
+
+      - name: Copy shared libraries to workspace
         run: |
-          echo "Contents of $INSTALL_DIR:"
-          ls -lR "$INSTALL_DIR"
+          mkdir -p $GITHUB_WORKSPACE/libs
+          cp "$INSTALL_DIR"/lib/*.so* $GITHUB_WORKSPACE/libs/
+
+      - name: List copied libraries
+        run: ls -l libs
 
       - name: Create GitHub Release and attach libraries
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ghostscript-${{ github.run_number }}
-          name: Ghostscript Shared Lib Build #${{ github.run_number }}
+          name: Ghostscript Shared Library Build #${{ github.run_number }}
+          draft: false
+          prerelease: false
           files: |
-            ${{ env.INSTALL_DIR }}/lib/*.so*
+            libs/*.so*
           token: ${{ secrets.GITHUB_TOKEN }}
