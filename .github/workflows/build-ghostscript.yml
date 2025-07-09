@@ -9,6 +9,8 @@ on:
 jobs:
   build_and_release:
     runs-on: ubuntu-latest
+    env:
+      INSTALL_DIR: $HOME/ghostscript-install
 
     steps:
       - name: Checkout repository
@@ -17,35 +19,36 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libtool automake \
-                                 pkg-config libjpeg-dev libpng-dev zlib1g-dev
+          sudo apt-get install -y \
+            build-essential libtool automake pkg-config \
+            libjpeg-dev libpng-dev zlib1g-dev
 
-      - name: Clone Ghostscript (GhostPDL) source
+      - name: Clone GhostPDL source
         run: |
           git clone https://github.com/ArtifexSoftware/ghostpdl.git
           cd ghostpdl
-          git submodule update --init
+          git submodule update --init --recursive
 
-      - name: Configure and build Ghostscript
+      - name: Configure & build Ghostscript
         run: |
-          mkdir -p $HOME/ghostscript-install
-          cd ghostpdl
+          mkdir -p "$INSTALL_DIR"
+          cd ghostpdl                       # <<— 这里就到根目录，不要再到 gs 目录
           ./autogen.sh
           ./configure --enable-shared --disable-gtk \
-                      --prefix="$HOME/ghostscript-install"
+                      --prefix="$INSTALL_DIR"
           make -j$(nproc)
           make install
 
-      - name: List built libraries
-        run: ls -l $HOME/ghostscript-install/lib
+      - name: Debug install directory
+        run: |
+          echo "Contents of $INSTALL_DIR:"
+          ls -lR "$INSTALL_DIR"
 
       - name: Create GitHub Release and attach libraries
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ghostscript-lib-${{ github.run_number }}
-          name: Ghostscript Shared Library Build #${{ github.run_number }}
-          draft: false
-          prerelease: false
+          tag_name: ghostscript-${{ github.run_number }}
+          name: Ghostscript Shared Lib Build #${{ github.run_number }}
           files: |
-            $HOME/ghostscript-install/lib/*.so*
+            ${{ env.INSTALL_DIR }}/lib/*.so*
           token: ${{ secrets.GITHUB_TOKEN }}
