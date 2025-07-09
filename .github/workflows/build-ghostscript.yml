@@ -5,15 +5,12 @@ permissions:
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/build-ghostscript.yml'
 
 jobs:
   build_and_release:
     runs-on: ubuntu-latest
     env:
-      INSTALL_DIR: $HOME/ghostscript-install
+      INSTALL_DIR: ${{ github.workspace }}/ghostscript-install
 
     steps:
       - name: Checkout repository
@@ -37,28 +34,28 @@ jobs:
           mkdir -p "$INSTALL_DIR"
           cd ghostpdl
           ./autogen.sh
-          ./configure --enable-shared --disable-gtk --prefix="$INSTALL_DIR"
+          ./configure --enable-shared --disable-static --disable-gtk \
+                      --prefix="$INSTALL_DIR"
           make -j$(nproc)
           make install
 
       - name: Debug install directory
-        run: ls -lR "$INSTALL_DIR"
-
-      - name: Copy shared libraries to workspace
         run: |
-          mkdir -p $GITHUB_WORKSPACE/libs
-          cp "$INSTALL_DIR"/lib/*.so* $GITHUB_WORKSPACE/libs/
+          echo "=== Installed directory structure ==="
+          ls -R "$INSTALL_DIR"
 
-      - name: List copied libraries
+      - name: Collect shared libraries
+        run: |
+          mkdir -p libs
+          cp "$INSTALL_DIR"/lib/*.so* libs/
+
+      - name: List collected libs
         run: ls -l libs
 
-      - name: Create GitHub Release and attach libraries
+      - name: Create GitHub Release with .so files
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ghostscript-${{ github.run_number }}
-          name: Ghostscript Shared Library Build #${{ github.run_number }}
-          draft: false
-          prerelease: false
-          files: |
-            libs/*.so*
+          tag_name: v${{ github.run_number }}
+          name: Ghostscript Shared Lib Build #${{ github.run_number }}
+          files: libs/*.so*
           token: ${{ secrets.GITHUB_TOKEN }}
