@@ -9,32 +9,34 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: ⬇️ Checkout Repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: 🛠️ Install Build Dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libtool automake \
                                  pkg-config libjpeg-dev libpng-dev zlib1g-dev
 
-      - name: 📦 Clone Ghostscript Source
+      - name: Clone Ghostscript source
         run: |
           git clone https://github.com/ArtifexSoftware/ghostpdl.git
           cd ghostpdl/gs
           git submodule update --init
 
-      - name: 🔧 Configure & Build Ghostscript
+      - name: Configure and build Ghostscript
         run: |
           cd ghostpdl/gs
           ./autogen.sh
-          ./configure --enable-shared --disable-gtk --prefix=$HOME/ghostscript-install
+          ./configure --enable-shared --disable-gtk \
+                      --prefix=${{ env.HOME }}/ghostscript-install
           make -j$(nproc)
           make install
 
-      - name: 📂 Upload Built Shared Library
-        uses: actions/upload-artifact@v3
+      - name: Upload built shared library
+        uses: actions/upload-artifact@v4
         with:
           name: ghostscript-lib
-          path: $HOME/ghostscript-install/lib
+          path: ${{ env.HOME }}/ghostscript-install/lib
