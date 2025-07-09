@@ -1,0 +1,40 @@
+name: Build Ghostscript Shared Library
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-ghostscript.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: 🛠️ Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libtool automake \
+                                 pkg-config libjpeg-dev libpng-dev zlib1g-dev
+
+      - name: 📦 Clone Ghostscript Source
+        run: |
+          git clone https://github.com/ArtifexSoftware/ghostpdl.git
+          cd ghostpdl/gs
+          git submodule update --init
+
+      - name: 🔧 Configure & Build Ghostscript
+        run: |
+          cd ghostpdl/gs
+          ./autogen.sh
+          ./configure --enable-shared --disable-gtk --prefix=$HOME/ghostscript-install
+          make -j$(nproc)
+          make install
+
+      - name: 📂 Upload Built Shared Library
+        uses: actions/upload-artifact@v3
+        with:
+          name: ghostscript-lib
+          path: $HOME/ghostscript-install/lib
