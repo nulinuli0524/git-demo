@@ -9,8 +9,6 @@ on:
 jobs:
   build_and_release:
     runs-on: ubuntu-latest
-    env:
-      INSTALL_DIR: $HOME/ghostscript-install
 
     steps:
       - name: Checkout repository
@@ -19,34 +17,35 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential libtool automake pkg-config \
-            libjpeg-dev libpng-dev zlib1g-dev
+          sudo apt-get install -y build-essential libtool automake \
+                                 pkg-config libjpeg-dev libpng-dev zlib1g-dev
 
-      - name: Clone GhostPDL source
+      - name: Clone Ghostscript (GhostPDL) source
         run: |
           git clone https://github.com/ArtifexSoftware/ghostpdl.git
           cd ghostpdl
           git submodule update --init
 
-      - name: Build Ghostscript shared library
+      - name: Configure and build Ghostscript
         run: |
-          mkdir -p "$INSTALL_DIR"
-          cd ghostpdl/gs
+          mkdir -p $HOME/ghostscript-install
+          cd ghostpdl
           ./autogen.sh
-          ./configure --enable-shared --disable-gtk --prefix="$INSTALL_DIR"
+          ./configure --enable-shared --disable-gtk \
+                      --prefix="$HOME/ghostscript-install"
           make -j$(nproc)
           make install
 
-      - name: Debug install directory
-        run: ls -lR "$INSTALL_DIR"
+      - name: List built libraries
+        run: ls -l $HOME/ghostscript-install/lib
 
       - name: Create GitHub Release and attach libraries
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ghostscript-${{ github.run_number }}
+          tag_name: ghostscript-lib-${{ github.run_number }}
           name: Ghostscript Shared Library Build #${{ github.run_number }}
           draft: false
           prerelease: false
           files: |
-            ${{ env.INSTALL_DIR }}/lib/*.so*
+            $HOME/ghostscript-install/lib/*.so*
+          token: ${{ secrets.GITHUB_TOKEN }}
